@@ -1,6 +1,7 @@
 export interface ScriptSegment {
   text: string;
   searchTerm: string;
+  allSearchTerms: string[]; // Stores the 3 variations from Gemini
   videoUrl?: string | null;
   videoDuration?: number;
   videoUser?: string;

@@ -97,7 +97,8 @@ const App: React.FC = () => {
         return {
           id: `seg-${index}-${Date.now()}`,
           text: seg.text,
-          searchTerm: usedTerm, // Mostra o termo que realmente funcionou (ou o último tentado)
+          searchTerm: usedTerm, // Mostra o termo que realmente funcionou
+          allSearchTerms: seg.search_terms, // Salva todas as opções para uso posterior
           videoUrl: bestVideoUrl,
           videoDuration: videoData?.duration,
           videoUser: videoData?.user?.name,
@@ -113,6 +114,45 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
       setLoadingStep('');
+    }
+  };
+
+  // Função para atualizar um único segmento (Manual ou Shuffle)
+  const handleUpdateSegment = async (segmentId: string, newTerm: string) => {
+    // Encontra o segmento atual
+    const segmentIndex = segments.findIndex(s => s.id === segmentId);
+    if (segmentIndex === -1) return;
+
+    try {
+      const result = await searchPexelsVideo(apiKeys.pexels, newTerm);
+      
+      let bestVideoUrl = null;
+      let videoData = null;
+
+      if (result && result.video_files && result.video_files.length > 0) {
+        videoData = result;
+        const hdFile = videoData.video_files.find(f => f.quality === 'hd' && f.width >= 1280);
+        const sdFile = videoData.video_files.find(f => f.quality === 'sd');
+        bestVideoUrl = hdFile ? hdFile.link : (sdFile ? sdFile.link : videoData.video_files[0]?.link);
+      }
+
+      // Atualiza o estado
+      setSegments(prev => {
+        const newSegments = [...prev];
+        newSegments[segmentIndex] = {
+          ...newSegments[segmentIndex],
+          searchTerm: newTerm,
+          videoUrl: bestVideoUrl,
+          videoDuration: videoData?.duration,
+          videoUser: videoData?.user?.name,
+          videoUserUrl: videoData?.user?.url
+        };
+        return newSegments;
+      });
+
+    } catch (error) {
+      console.error("Erro ao atualizar segmento:", error);
+      // Opcional: Mostrar toast de erro
     }
   };
 
@@ -246,9 +286,9 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Results - Largura Total */}
+          {/* Results - Pass function to update segments */}
           <div className="w-full">
-            <ResultList segments={segments} />
+            <ResultList segments={segments} onUpdateSegment={handleUpdateSegment} />
           </div>
         </div>
 
