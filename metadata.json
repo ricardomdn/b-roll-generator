@@ -1,0 +1,5 @@
+{
+  "name": "AI B-Roll Organizer",
+  "description": "An AI-powered tool that analyzes video scripts, breaks them into scenes, and automatically matches them with stock footage from Pexels using the Gemini API.",
+  "requestFramePermissions": []
+}
