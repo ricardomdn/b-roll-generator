@@ -50,8 +50,6 @@ const App: React.FC = () => {
       // Step 2: Pexels Video Search
       setLoadingStep(`Buscando vídeos para ${rawSegments.length} cenas...`);
       
-      const enrichedSegments: ScriptSegment[] = [];
-      
       const segmentPromises = rawSegments.map(async (seg, index) => {
         const videoData = await searchPexelsVideo(apiKeys.pexels, seg.search_term);
         
