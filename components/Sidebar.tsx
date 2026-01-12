@@ -120,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
 
         <div className="mt-12 pt-6 border-t border-slate-700 text-slate-500 text-xs text-center">
           <p>Organizador Automático de B-Roll</p>
-          <p className="mt-2">Versão 1.0.2</p>
+          <p className="mt-2">Versão 1.1.0</p>
         </div>
       </div>
 

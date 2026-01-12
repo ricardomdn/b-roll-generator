@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-interface SegmentResponse {
+export interface SegmentResponse {
   text: string;
-  search_term: string;
+  search_terms: string[];
 }
 
 export const analyzeScript = async (apiKey: string, script: string): Promise<SegmentResponse[]> => {
@@ -14,12 +14,27 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
     Analyze the following video script. 
     Break it down into logical visual segments (scenes). 
     
-    **CRITICAL INSTRUCTION FOR PACING:**
-    1. **THE HOOK (Beginning):** You MUST break the start of the script (first 2-3 sentences) into very short, fast-paced segments (e.g., 3-5 words each). This creates a high-energy "hook" to grab attention.
-    2. **THE BODY:** The rest of the script can have standard, natural pacing based on the narrative flow.
+    **PACING:**
+    1. **HOOK:** Start with 2-3 short, fast-paced segments.
+    2. **BODY:** Natural pacing for the rest.
 
-    For each segment, provide the original text (in its original language) and generate a concise, high-quality VISUAL SEARCH TERM in English (e.g., 'cinematic city sunset', 'happy business woman', 'drone shot forest').
+    For each segment, generate **3 VISUAL SEARCH TERMS** for stock footage.
     
+    **SEARCH TERM RULES (CRITICAL):**
+    1. **ALWAYS IN ENGLISH** (even if script is Portuguese).
+    2. **NO SENTENCES.** Use descriptive KEYWORDS.
+    3. **NO** "Cinematic shot", "Video of", "4k". Just the subject.
+
+    **HIERARCHY OF TERMS (You must provide 3):**
+    1. **Descriptive (The Vibe):** Subject + Action + Mood/Setting (Max 5-6 words). 
+       *Example:* "Sad business woman crying rain window"
+    2. **Standard (The Subject):** Main Subject + Action (Max 3-4 words).
+       *Example:* "Woman crying window"
+    3. **Broad (The Safety Net):** Single Noun/Category (1 word). **Must be very broad.**
+       *Example:* "Sadness" or "Rain"
+    
+    *Logic:* If term 1 fails, the system tries term 2. If term 2 fails, term 3 MUST work.
+
     Script:
     """
     ${script}
@@ -31,7 +46,7 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a professional video editor specializing in high-retention viral content. You understand the importance of a fast-paced hook.",
+        systemInstruction: "You are a stock footage expert. You generate English search keywords ordered from specific to very broad.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -40,14 +55,15 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
             properties: {
               text: {
                 type: Type.STRING,
-                description: "The original text segment from the script",
+                description: "The original text segment",
               },
-              search_term: {
-                type: Type.STRING,
-                description: "A concise visual search term in English for stock footage",
+              search_terms: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "List of 3 terms: [Descriptive, Standard, Broad]",
               },
             },
-            required: ["text", "search_term"],
+            required: ["text", "search_terms"],
           },
         },
       },

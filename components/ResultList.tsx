@@ -9,9 +9,9 @@ export const ResultList: React.FC<ResultListProps> = ({ segments }) => {
   if (segments.length === 0) return null;
 
   return (
-    <div className="space-y-8 mt-10">
+    <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-2xl font-bold text-white">Roteiro Visual Gerado</h3>
+        <h3 className="text-xl font-bold text-white">Roteiro Visual Gerado</h3>
         <span className="text-sm text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
           {segments.length} Cenas
         </span>
@@ -23,34 +23,34 @@ export const ResultList: React.FC<ResultListProps> = ({ segments }) => {
             key={segment.id} 
             className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg transition-all hover:border-emerald-500/50"
           >
-            <div className="flex flex-col md:flex-row h-full">
+            <div className="flex flex-col xl:flex-row h-full">
               {/* Text Section */}
-              <div className="p-6 md:w-1/3 flex flex-col justify-center border-b md:border-b-0 md:border-r border-slate-700 bg-slate-800/50">
+              <div className="p-5 xl:w-2/5 flex flex-col justify-center border-b xl:border-b-0 xl:border-r border-slate-700 bg-slate-800/50">
                 <div className="mb-2 flex items-center gap-2">
                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">
                     {index + 1}
                    </span>
                    <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">Cena</span>
                 </div>
-                <p className="text-slate-200 text-lg leading-relaxed font-medium">
+                <p className="text-slate-200 text-base leading-relaxed font-medium">
                   "{segment.text}"
                 </p>
                 <div className="mt-4 pt-4 border-t border-slate-700/50">
                   <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Termo de Busca (Prompt)</p>
-                  <code className="text-sm text-emerald-400 font-mono bg-slate-900 px-2 py-1 rounded block w-full truncate">
+                  <code className="text-xs text-emerald-400 font-mono bg-slate-900 px-2 py-1 rounded block w-full truncate">
                     {segment.searchTerm}
                   </code>
                 </div>
               </div>
 
               {/* Video Section */}
-              <div className="md:w-2/3 bg-black relative flex items-center justify-center min-h-[300px]">
+              <div className="xl:w-3/5 bg-black relative flex items-center justify-center min-h-[250px]">
                 {segment.videoUrl ? (
                   <div className="relative w-full h-full group">
                      <video 
                       src={segment.videoUrl} 
                       controls 
-                      className="w-full h-full object-contain max-h-[400px]"
+                      className="w-full h-full object-contain max-h-[350px]"
                       preload="metadata"
                       poster={segment.videoUrl.replace('.mp4', '.jpg')} // Pexels usually has standard naming, but this is a rough fallback
                     >
@@ -58,11 +58,10 @@ export const ResultList: React.FC<ResultListProps> = ({ segments }) => {
                     </video>
                     
                     {/* Video Metadata Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                       <div className="flex justify-between items-end">
                         <div>
-                          <p className="text-white text-sm font-medium">Videographer: {segment.videoUser}</p>
-                          <p className="text-slate-300 text-xs">Pexels Video ID: {segment.id.split('-')[1]}</p>
+                          <p className="text-white text-xs font-medium">Videographer: {segment.videoUser}</p>
                         </div>
                         <a 
                           href={segment.videoUrl} 
