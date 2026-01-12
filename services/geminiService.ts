@@ -24,15 +24,20 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
 
     **TASK:**
     Break down the text above into logical visual segments (scenes) from start to finish.
+
+    **PACING RULES (HIGH PRIORITY):**
+    1.  **THE HOOK (First 20% of text):** You MUST create **RAPID CUTS** for the beginning. 
+        *   **Instruction:** Break the first 3-5 sentences into very short sub-segments (every 4-8 words or per specific action). 
+        *   **Goal:** High energy, fast visual changes to grab attention immediately.
+        *   *Example:* Instead of one long clip for "Welcome to the world of AI where everything changes", split it into:
+            1. "Welcome to the world of AI" (Visual: AI Brain)
+            2. "where everything changes" (Visual: Fast timelapse)
+    2.  **THE BODY (Remaining text):** Switch to natural pacing. One visual per full sentence or complete thought.
     
     **CRITICAL INSTRUCTIONS:**
-    1.  **NO TRUNCATION:** You MUST process every single sentence until the very end of the text.
-    2.  **CONTINUOUS STREAM:** The input is a raw stream of narration. Do not assume structure.
-    3.  **GRANULARITY:** Every sentence or major clause needs a visual match.
-    
-    **PACING:**
-    1. **HOOK:** Start with 2-3 short, fast-paced segments.
-    2. **BODY:** Natural pacing for the rest.
+    1.  **NO TRUNCATION:** You MUST process every single sentence until the very last word.
+    2.  **CONTINUOUS STREAM:** Treat the input as a raw stream. Ignore original formatting/paragraphs.
+    3.  **GRANULARITY:** Do not group multiple sentences into one segment unless they are very short.
 
     For each segment, generate **3 VISUAL SEARCH TERMS** for stock footage.
     
@@ -57,7 +62,7 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a stock footage expert. Your goal is to visualize the ENTIRE script provided, regardless of length. Never summarize. Never stop early.",
+        systemInstruction: "You are a professional video editor specializing in B-Roll. You prioritize fast-paced hooks and complete coverage of the script.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -66,7 +71,7 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
             properties: {
               text: {
                 type: Type.STRING,
-                description: "The original text segment",
+                description: "The text segment (Keep short for the first 5 segments)",
               },
               search_terms: {
                 type: Type.ARRAY,
