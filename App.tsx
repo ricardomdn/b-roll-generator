@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ResultList } from './components/ResultList';
-import { analyzeScript } from './services/geminiService';
+import { analyzeScript, generateAlternativeTerm } from './services/geminiService';
 import { searchPexelsVideo } from './services/pexelsService';
 import { ApiKeys, ScriptSegment } from './types';
 
@@ -117,9 +117,8 @@ const App: React.FC = () => {
     }
   };
 
-  // Função para atualizar um único segmento (Manual ou Shuffle)
+  // Função para atualizar um único segmento (Manual)
   const handleUpdateSegment = async (segmentId: string, newTerm: string) => {
-    // Encontra o segmento atual
     const segmentIndex = segments.findIndex(s => s.id === segmentId);
     if (segmentIndex === -1) return;
 
@@ -136,7 +135,48 @@ const App: React.FC = () => {
         bestVideoUrl = hdFile ? hdFile.link : (sdFile ? sdFile.link : videoData.video_files[0]?.link);
       }
 
-      // Atualiza o estado
+      setSegments(prev => {
+        const newSegments = [...prev];
+        newSegments[segmentIndex] = {
+          ...newSegments[segmentIndex],
+          searchTerm: newTerm,
+          videoUrl: bestVideoUrl,
+          videoDuration: videoData?.duration,
+          videoUser: videoData?.user?.name,
+          videoUserUrl: videoData?.user?.url
+        };
+        return newSegments;
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar segmento:", error);
+    }
+  };
+
+  // Função para regenerar um segmento com IA
+  const handleRegenerateSegment = async (segmentId: string) => {
+    const segmentIndex = segments.findIndex(s => s.id === segmentId);
+    if (segmentIndex === -1) return;
+    
+    const segment = segments[segmentIndex];
+
+    try {
+      // 1. Gerar novo termo com Gemini
+      const newTerm = await generateAlternativeTerm(apiKeys.gemini, segment.text, segment.searchTerm);
+
+      // 2. Buscar no Pexels com o novo termo
+      const result = await searchPexelsVideo(apiKeys.pexels, newTerm);
+      
+      let bestVideoUrl = null;
+      let videoData = null;
+
+      if (result && result.video_files && result.video_files.length > 0) {
+        videoData = result;
+        const hdFile = videoData.video_files.find(f => f.quality === 'hd' && f.width >= 1280);
+        const sdFile = videoData.video_files.find(f => f.quality === 'sd');
+        bestVideoUrl = hdFile ? hdFile.link : (sdFile ? sdFile.link : videoData.video_files[0]?.link);
+      }
+
+      // 3. Atualizar Estado
       setSegments(prev => {
         const newSegments = [...prev];
         newSegments[segmentIndex] = {
@@ -151,8 +191,8 @@ const App: React.FC = () => {
       });
 
     } catch (error) {
-      console.error("Erro ao atualizar segmento:", error);
-      // Opcional: Mostrar toast de erro
+       console.error("Erro ao regenerar segmento:", error);
+       // Poderia setar um erro toast aqui
     }
   };
 
@@ -288,7 +328,11 @@ const App: React.FC = () => {
 
           {/* Results - Pass function to update segments */}
           <div className="w-full">
-            <ResultList segments={segments} onUpdateSegment={handleUpdateSegment} />
+            <ResultList 
+                segments={segments} 
+                onUpdateSegment={handleUpdateSegment} 
+                onRegenerateSegment={handleRegenerateSegment}
+            />
           </div>
         </div>
 

@@ -1,20 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScriptSegment } from '../types';
 
 interface ResultListProps {
   segments: ScriptSegment[];
   onUpdateSegment: (id: string, newTerm: string) => Promise<void>;
+  onRegenerateSegment: (id: string) => Promise<void>;
 }
 
 // Componente individual para gerenciar estado de edição e loading
 const ResultCard: React.FC<{ 
   segment: ScriptSegment; 
   index: number; 
-  onUpdate: (id: string, term: string) => Promise<void> 
-}> = ({ segment, index, onUpdate }) => {
+  onUpdate: (id: string, term: string) => Promise<void>;
+  onRegenerate: (id: string) => Promise<void>;
+}> = ({ segment, index, onUpdate, onRegenerate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTerm, setEditTerm] = useState(segment.searchTerm);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Sync editTerm with segment.searchTerm if it changes externally (e.g. by AI regeneration)
+  useEffect(() => {
+    setEditTerm(segment.searchTerm);
+  }, [segment.searchTerm]);
 
   const handleSave = async () => {
     if (!editTerm.trim()) return;
@@ -24,15 +31,9 @@ const ResultCard: React.FC<{
     setIsUpdating(false);
   };
 
-  const handleShuffle = async () => {
+  const handleRegenerateClick = async () => {
     setIsUpdating(true);
-    // Encontra o próximo termo na lista de sugestões da IA
-    const currentIdx = segment.allSearchTerms.indexOf(segment.searchTerm);
-    const nextIdx = (currentIdx + 1) % segment.allSearchTerms.length;
-    const nextTerm = segment.allSearchTerms[nextIdx];
-    
-    setEditTerm(nextTerm); // Atualiza o input também
-    await onUpdate(segment.id, nextTerm);
+    await onRegenerate(segment.id);
     setIsUpdating(false);
   };
 
@@ -66,15 +67,15 @@ const ResultCard: React.FC<{
               
               {/* Actions */}
               <div className="flex gap-1">
-                {/* Shuffle Button (Try next AI suggestion) */}
+                {/* AI Regenerate Button */}
                 <button 
-                  onClick={handleShuffle}
+                  onClick={handleRegenerateClick}
                   disabled={isUpdating || isEditing}
-                  title="Tentar outra sugestão da IA"
-                  className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-700 rounded-md transition-all disabled:opacity-30"
+                  title="Gerar nova sugestão com IA"
+                  className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-700 rounded-md transition-all disabled:opacity-30 group"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${isUpdating ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${isUpdating ? 'animate-spin' : 'group-hover:rotate-12 transition-transform'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                   </svg>
                 </button>
 
@@ -112,7 +113,7 @@ const ResultCard: React.FC<{
                 </button>
               </div>
             ) : (
-              <code className="text-xs text-emerald-400 font-mono bg-slate-900 px-2 py-1 rounded block w-full truncate border border-transparent">
+              <code className="text-xs text-emerald-400 font-mono bg-slate-900 px-2 py-1 rounded block w-full truncate border border-transparent" title={segment.searchTerm}>
                 {segment.searchTerm}
               </code>
             )}
@@ -179,7 +180,7 @@ const ResultCard: React.FC<{
   );
 };
 
-export const ResultList: React.FC<ResultListProps> = ({ segments, onUpdateSegment }) => {
+export const ResultList: React.FC<ResultListProps> = ({ segments, onUpdateSegment, onRegenerateSegment }) => {
   if (segments.length === 0) return null;
 
   return (
@@ -198,6 +199,7 @@ export const ResultList: React.FC<ResultListProps> = ({ segments, onUpdateSegmen
             segment={segment} 
             index={index} 
             onUpdate={onUpdateSegment} 
+            onRegenerate={onRegenerateSegment}
           />
         ))}
       </div>
