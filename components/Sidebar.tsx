@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ApiKeys } from '../types';
 
 interface SidebarProps {
@@ -6,12 +6,36 @@ interface SidebarProps {
   setApiKeys: (keys: ApiKeys) => void;
 }
 
+const STORAGE_KEY = 'ai_broll_keys';
+
 export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Estado para controlar se deve salvar, iniciado baseado na existência de dados
+  const [saveKeys, setSaveKeys] = useState(() => {
+    return !!localStorage.getItem(STORAGE_KEY);
+  });
 
-  // Helper to update specific key
+  // Atualiza as chaves e sincroniza com localStorage se a opção estiver marcada
   const handleChange = (key: keyof ApiKeys, value: string) => {
-    setApiKeys({ ...apiKeys, [key]: value });
+    const newKeys = { ...apiKeys, [key]: value };
+    setApiKeys(newKeys);
+    
+    if (saveKeys) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newKeys));
+    }
+  };
+
+  // Toggle do checkbox de salvar
+  const handleSaveToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = e.target.checked;
+    setSaveKeys(isChecked);
+    
+    if (isChecked) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(apiKeys));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   };
 
   return (
@@ -70,19 +94,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
             </p>
           </div>
 
+          {/* Save Option */}
+          <div className="flex items-center gap-2 pt-2">
+            <input 
+              type="checkbox" 
+              id="save-keys" 
+              checked={saveKeys}
+              onChange={handleSaveToggle}
+              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/50"
+            />
+            <label htmlFor="save-keys" className="text-sm text-slate-300 cursor-pointer select-none">
+              Salvar chaves neste navegador?
+            </label>
+          </div>
+
           <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-md">
             <p className="text-xs text-yellow-500 flex items-start gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>Suas chaves são usadas apenas no navegador e não são salvas em nenhum servidor.</span>
+              <span>Se marcado, suas chaves ficam salvas apenas no LocalStorage do seu navegador.</span>
             </p>
           </div>
         </div>
 
         <div className="mt-12 pt-6 border-t border-slate-700 text-slate-500 text-xs text-center">
           <p>Organizador Automático de B-Roll</p>
-          <p className="mt-2">Versão 1.0.0</p>
+          <p className="mt-2">Versão 1.0.1</p>
         </div>
       </div>
 

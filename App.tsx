@@ -6,7 +6,16 @@ import { searchPexelsVideo } from './services/pexelsService';
 import { ApiKeys, ScriptSegment } from './types';
 
 const App: React.FC = () => {
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({ gemini: '', pexels: '' });
+  // Inicializa o estado verificando o LocalStorage
+  const [apiKeys, setApiKeys] = useState<ApiKeys>(() => {
+    try {
+      const saved = localStorage.getItem('ai_broll_keys');
+      return saved ? JSON.parse(saved) : { gemini: '', pexels: '' };
+    } catch (e) {
+      return { gemini: '', pexels: '' };
+    }
+  });
+
   const [script, setScript] = useState('');
   const [segments, setSegments] = useState<ScriptSegment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,17 +52,12 @@ const App: React.FC = () => {
       
       const enrichedSegments: ScriptSegment[] = [];
       
-      // Process serially to avoid rate limits if any, or parallel (Promise.all) for speed.
-      // Using Promise.all for better UX, assuming Pexels allows reasonable concurrency.
       const segmentPromises = rawSegments.map(async (seg, index) => {
         const videoData = await searchPexelsVideo(apiKeys.pexels, seg.search_term);
         
-        // Find the best quality video file (HD)
         let bestVideoUrl = null;
         if (videoData && videoData.video_files) {
-            // Try to find HD landscape
             const hdFile = videoData.video_files.find(f => f.quality === 'hd' && f.width >= 1280);
-            // Fallback to sd
             const sdFile = videoData.video_files.find(f => f.quality === 'sd');
             
             bestVideoUrl = hdFile ? hdFile.link : (sdFile ? sdFile.link : videoData.video_files[0]?.link);
