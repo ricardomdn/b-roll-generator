@@ -8,16 +8,27 @@ export interface SegmentResponse {
 export const analyzeScript = async (apiKey: string, script: string): Promise<SegmentResponse[]> => {
   if (!apiKey) throw new Error("API Key do Gemini é obrigatória");
 
+  // CRITICAL FIX: Flatten the script to remove paragraph breaks that might cause the model to stop early.
+  // This forces the model to treat the input as a single continuous stream of text.
+  const cleanScript = script.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
     Analyze the **ENTIRE** video script provided below.
-    Break it down completely into logical visual segments (scenes) from start to finish.
+    
+    Script Content:
+    """
+    ${cleanScript}
+    """
+
+    **TASK:**
+    Break down the text above into logical visual segments (scenes) from start to finish.
     
     **CRITICAL INSTRUCTIONS:**
-    1.  **PROCESS EVERYTHING:** You must output segments for the **WHOLE** script. Do not stop until you reach the very last sentence. Do not summarize.
-    2.  **IGNORE FORMATTING:** Ignore paragraph breaks or newlines in the input text. Treat the input as a continuous stream of narration. Paragraphs do NOT indicate the end of the script.
-    3.  **GRANULARITY:** Every sentence or major clause should have its own visual.
+    1.  **NO TRUNCATION:** You MUST process every single sentence until the very end of the text.
+    2.  **CONTINUOUS STREAM:** The input is a raw stream of narration. Do not assume structure.
+    3.  **GRANULARITY:** Every sentence or major clause needs a visual match.
     
     **PACING:**
     1. **HOOK:** Start with 2-3 short, fast-paced segments.
@@ -39,11 +50,6 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
        *Example:* "Sadness" or "Rain"
     
     *Logic:* If term 1 fails, the system tries term 2. If term 2 fails, term 3 MUST work.
-
-    Script:
-    """
-    ${script}
-    """
   `;
 
   try {
@@ -51,7 +57,7 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a stock footage expert. Your goal is to visualize the ENTIRE script provided, regardless of length or formatting. Never truncate the output.",
+        systemInstruction: "You are a stock footage expert. Your goal is to visualize the ENTIRE script provided, regardless of length. Never summarize. Never stop early.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
