@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
               className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/50"
             />
             <label htmlFor="save-keys" className="text-sm text-slate-300 cursor-pointer select-none">
-              Salvar chaves neste navegador?
+              Salvar opções?
             </label>
           </div>
 
@@ -113,14 +113,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>Se marcado, suas chaves ficam salvas apenas no LocalStorage do seu navegador.</span>
+              <span>Se marcado, suas chaves ficam salvas no navegador.</span>
             </p>
           </div>
         </div>
 
         <div className="mt-12 pt-6 border-t border-slate-700 text-slate-500 text-xs text-center">
           <p>Organizador Automático de B-Roll</p>
-          <p className="mt-2">Versão 1.0.1</p>
+          <p className="mt-2">Versão 1.0.2</p>
         </div>
       </div>
 
