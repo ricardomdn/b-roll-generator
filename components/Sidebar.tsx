@@ -94,17 +94,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
             </p>
           </div>
 
-          {/* Save Option */}
-          <div className="flex items-center gap-2 pt-2">
-            <input 
-              type="checkbox" 
-              id="save-keys" 
-              checked={saveKeys}
-              onChange={handleSaveToggle}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/50"
-            />
-            <label htmlFor="save-keys" className="text-sm text-slate-300 cursor-pointer select-none">
-              Salvar opções?
+          {/* Save Option - Toggle Switch Animation */}
+          <div className="pt-2">
+            <label className="relative inline-flex items-center cursor-pointer group">
+              <input 
+                type="checkbox" 
+                checked={saveKeys}
+                onChange={handleSaveToggle}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all border-gray-600 peer-checked:bg-emerald-600"></div>
+              <span className={`ml-3 text-sm font-medium transition-colors select-none ${saveKeys ? 'text-slate-200' : 'text-slate-500'}`}>
+                Salvar opções?
+              </span>
             </label>
           </div>
 
@@ -120,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ apiKeys, setApiKeys }) => {
 
         <div className="mt-12 pt-6 border-t border-slate-700 text-slate-500 text-xs text-center">
           <p>Organizador Automático de B-Roll</p>
-          <p className="mt-2">Versão 1.2.1</p>
+          <p className="mt-2 font-mono opacity-70">Versão 1.2.5</p>
         </div>
       </div>
 

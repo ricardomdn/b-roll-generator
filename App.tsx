@@ -1,12 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ResultList } from './components/ResultList';
 import { analyzeScript, generateAlternativeTerm } from './services/geminiService';
 import { searchPexelsVideo } from './services/pexelsService';
 import { ApiKeys, ScriptSegment } from './types';
+import JSZip from 'jszip';
+import saveAs from 'file-saver';
 
 // Helper delay function to avoid hitting API rate limits
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const PLACEHOLDER_TEXT = `Ex: Você já sentiu que o tempo está passando rápido demais? A vida na cidade grande nos consome. O trânsito caótico, as luzes artificiais e o barulho constante nos deixam exaustos. Precisamos de uma pausa. Mas imagine um lugar onde o relógio para. Um refúgio onde o único som é o vento nas árvores. Conecte-se com a natureza. Respire ar puro nas montanhas e redescubra sua paz interior. Sua próxima aventura começa agora.`;
 
 const App: React.FC = () => {
   // Inicializa o estado verificando o LocalStorage
@@ -24,11 +28,11 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-
-  // Estados para o Modo Cinema (Preview)
-  const [showPreview, setShowPreview] = useState(false);
-  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Estados de Download
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
+  const [isZipping, setIsZipping] = useState(false);
 
   const handleGenerate = async () => {
     setError(null);
@@ -196,34 +200,69 @@ const App: React.FC = () => {
     }
   };
 
-  // Funções do Player
-  const openPreview = () => {
-    if (segments.length > 0) {
-      setCurrentPreviewIndex(0);
-      setShowPreview(true);
+  // Função para baixar todos os vídeos em ZIP (Paralelizado)
+  const handleDownloadAll = async () => {
+    const videosToDownload = segments.filter(s => s.videoUrl);
+    if (videosToDownload.length === 0) return;
+
+    setDownloading(true);
+    setIsZipping(false);
+    setDownloadProgress({ current: 0, total: videosToDownload.length });
+    
+    const zip = new JSZip();
+    const folder = zip.folder("b-roll-videos");
+
+    try {
+      // Cria um array de Promises para baixar em paralelo
+      const downloadPromises = videosToDownload.map(async (segment, index) => {
+        if (!segment.videoUrl) return null;
+
+        try {
+          const response = await fetch(segment.videoUrl);
+          if (!response.ok) throw new Error(`Falha no download`);
+          const blob = await response.blob();
+
+          // Atualiza contador
+          setDownloadProgress(prev => ({
+            ...prev,
+            current: prev.current + 1
+          }));
+
+          const safeFilename = segment.searchTerm.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          const fileName = `cena_${(index + 1).toString().padStart(2, '0')}_${safeFilename}.mp4`;
+
+          return { fileName, blob };
+        } catch (e) {
+          console.error(`Erro ao baixar video ${index}:`, e);
+          return null;
+        }
+      });
+
+      // Aguarda todos os downloads
+      const files = await Promise.all(downloadPromises);
+
+      // Adiciona ao ZIP
+      files.forEach(file => {
+        if (file && folder) {
+          folder.file(file.fileName, file.blob);
+        }
+      });
+
+      if (files.filter(f => f !== null).length > 0) {
+        setIsZipping(true); // Muda o texto para "Compactando..."
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, "b-roll-pack.zip");
+      }
+
+    } catch (err) {
+      console.error("Erro ao gerar ZIP:", err);
+      setError("Falha ao criar arquivo ZIP. Alguns vídeos podem ter bloqueio de download.");
+    } finally {
+      setDownloading(false);
+      setIsZipping(false);
+      setDownloadProgress({ current: 0, total: 0 });
     }
   };
-
-  const closePreview = () => {
-    setShowPreview(false);
-    if (videoRef.current) videoRef.current.pause();
-  };
-
-  const handleVideoEnded = () => {
-    if (currentPreviewIndex < segments.length - 1) {
-      setCurrentPreviewIndex(prev => prev + 1);
-    } else {
-      // Loop ou parar? Vamos parar e mostrar o botão de replay
-    }
-  };
-
-  // Efeito para tocar o vídeo quando o índice mudar
-  useEffect(() => {
-    if (showPreview && videoRef.current) {
-      videoRef.current.load();
-      videoRef.current.play().catch(e => console.log("Autoplay preventido pelo navegador", e));
-    }
-  }, [currentPreviewIndex, showPreview]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
@@ -256,8 +295,8 @@ const App: React.FC = () => {
               id="script-input"
               value={script}
               onChange={(e) => setScript(e.target.value)}
-              placeholder="Ex: [Intro] Bem-vindos ao futuro... [Cena 2] Carros voadores passam..."
-              className="w-full h-48 bg-slate-950 border border-slate-700 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y text-base leading-relaxed"
+              placeholder={PLACEHOLDER_TEXT}
+              className="w-full h-56 bg-slate-950 border border-slate-700 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y text-base leading-relaxed"
             />
             
             <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -265,24 +304,51 @@ const App: React.FC = () => {
                 {script.length > 0 && `${script.length} caracteres`}
               </div>
               
-              <div className="flex gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                {/* Botões de Ação Condicionais */}
                 {segments.length > 0 && !loading && (
-                   <button
-                    onClick={openPreview}
-                    className="px-6 py-3 rounded-xl font-bold text-white bg-slate-700 hover:bg-slate-600 transition-all flex items-center gap-2 flex-1 md:flex-none justify-center border border-slate-600"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
-                    Pré-visualizar
-                  </button>
+                   <>
+                      <button
+                        onClick={handleDownloadAll}
+                        disabled={downloading}
+                        className={`
+                          px-5 py-3 rounded-xl font-bold text-white transition-all flex items-center gap-2 justify-center border border-slate-600 min-w-[160px]
+                          ${downloading ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-700 hover:bg-slate-600'}
+                        `}
+                      >
+                         {downloading ? (
+                             <div className="flex items-center gap-2">
+                                <svg className="animate-spin h-5 w-5 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>
+                                  {isZipping 
+                                    ? 'Compactando...' 
+                                    : `${downloadProgress.current}/${downloadProgress.total}`}
+                                </span>
+                             </div>
+                         ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                              <span className="flex items-center gap-1">
+                                Baixar Tudo
+                                <span className="text-xs opacity-60 font-medium tracking-wide">(Lento)</span>
+                              </span>
+                            </>
+                         )}
+                      </button>
+                   </>
                 )}
 
+                {/* Botão Principal Gerar */}
                 <button
                   onClick={handleGenerate}
-                  disabled={loading}
+                  disabled={loading || downloading}
                   className={`
-                    px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 flex-1 md:flex-none justify-center
+                    px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 justify-center
                     ${loading 
                       ? 'bg-slate-700 cursor-not-allowed text-slate-400' 
                       : 'bg-emerald-600 hover:bg-emerald-500 hover:shadow-emerald-500/20 active:transform active:scale-95'
@@ -342,104 +408,6 @@ const App: React.FC = () => {
             Desenvolvido por <a href="https://github.com/ricardomdn" target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors hover:underline">Ricardão</a>
           </p>
         </footer>
-
-        {/* CINEMA MODE OVERLAY */}
-        {showPreview && segments.length > 0 && (
-          <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
-            {/* Close Button */}
-            <button 
-              onClick={closePreview}
-              className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors z-[110]"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Main Video Area */}
-            <div className="w-full h-full max-h-[80vh] max-w-7xl relative flex items-center justify-center bg-black">
-              {segments[currentPreviewIndex].videoUrl ? (
-                <video
-                  ref={videoRef}
-                  src={segments[currentPreviewIndex].videoUrl!}
-                  className="w-full h-full object-contain"
-                  controls={false} // Hide default controls for cinematic feel
-                  autoPlay
-                  onEnded={handleVideoEnded}
-                  onClick={(e) => {
-                     e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause();
-                  }}
-                />
-              ) : (
-                <div className="text-center text-slate-500">
-                  <p className="text-xl">Vídeo não disponível para esta cena</p>
-                </div>
-              )}
-
-              {/* Subtitles Overlay */}
-              <div className="absolute bottom-12 left-0 right-0 px-4 text-center">
-                <div className="inline-block bg-black/60 backdrop-blur-sm px-6 py-3 rounded-lg max-w-3xl">
-                  <p className="text-white text-lg md:text-2xl font-medium drop-shadow-md leading-relaxed">
-                    {segments[currentPreviewIndex].text}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div className="w-full max-w-4xl px-8 h-24 flex items-center justify-between">
-               <div className="text-slate-400 text-sm font-mono">
-                  Cena {currentPreviewIndex + 1} / {segments.length}
-               </div>
-
-               <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setCurrentPreviewIndex(Math.max(0, currentPreviewIndex - 1))}
-                    disabled={currentPreviewIndex === 0}
-                    className="p-2 rounded-full hover:bg-slate-800 disabled:opacity-30 text-white transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" />
-                    </svg>
-                  </button>
-
-                  <button 
-                     onClick={() => {
-                        if (videoRef.current) {
-                           videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
-                        }
-                     }}
-                     className="p-3 bg-white text-black rounded-full hover:bg-slate-200 transition-colors"
-                  >
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                     </svg>
-                  </button>
-
-                  <button 
-                    onClick={() => setCurrentPreviewIndex(Math.min(segments.length - 1, currentPreviewIndex + 1))}
-                    disabled={currentPreviewIndex === segments.length - 1}
-                    className="p-2 rounded-full hover:bg-slate-800 disabled:opacity-30 text-white transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M4.555 14.832l-1.588.914a1 1 0 010-1.664l6-4a1 1 0 011.555.832V14l5.445 3.63a1 1 0 010 1.664l-6 4a1 1 0 01-1.555-.832V14.832z" />
-                       <path d="M10 6a1 1 0 011.555-.832l6 4a1 1 0 010 1.664l-6 4A1 1 0 0110 14V6z" />
-                    </svg>
-                  </button>
-               </div>
-               
-               <div className="w-24"></div> {/* Spacer for alignment */}
-            </div>
-
-            {/* Progress Bar */}
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-900">
-               <div 
-                  className="h-full bg-emerald-500 transition-all duration-300" 
-                  style={{ width: `${((currentPreviewIndex + 1) / segments.length) * 100}%` }}
-               />
-            </div>
-          </div>
-        )}
 
       </main>
     </div>
