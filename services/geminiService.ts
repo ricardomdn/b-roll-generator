@@ -8,53 +8,34 @@ export interface SegmentResponse {
 export const analyzeScript = async (apiKey: string, script: string): Promise<SegmentResponse[]> => {
   if (!apiKey) throw new Error("API Key do Gemini é obrigatória");
 
-  // CRITICAL FIX: Flatten the script to remove paragraph breaks that might cause the model to stop early.
-  // This forces the model to treat the input as a single continuous stream of text.
-  const cleanScript = script.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+  // V1.2.1 LOGIC: Flatten the script to remove user formatting. 
+  // We want the AI to dictate the pacing, not the paragraph breaks.
+  const cleanScript = script.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
 
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
-    Analyze the **ENTIRE** video script provided below.
+    Analyze the following video script and segment it into visual scenes for stock footage.
     
-    Script Content:
-    """
-    ${cleanScript}
-    """
+    SCRIPT:
+    "${cleanScript}"
 
-    **TASK:**
-    Break down the text above into logical visual segments (scenes) from start to finish.
+    **YOUR TASK:**
+    Break this script into video segments based on VISUAL FLOW and PACING.
 
-    **PACING RULES (HIGH PRIORITY):**
-    1.  **THE HOOK (First 20% of text):** You MUST create **RAPID CUTS** for the beginning. 
-        *   **Instruction:** Break the first 3-5 sentences into very short sub-segments (every 4-8 words or per specific action). 
-        *   **Goal:** High energy, fast visual changes to grab attention immediately.
-        *   *Example:* Instead of one long clip for "Welcome to the world of AI where everything changes", split it into:
-            1. "Welcome to the world of AI" (Visual: AI Brain)
-            2. "where everything changes" (Visual: Fast timelapse)
-    2.  **THE BODY (Remaining text):** Switch to natural pacing. One visual per full sentence or complete thought.
-    
-    **CRITICAL INSTRUCTIONS:**
-    1.  **NO TRUNCATION:** You MUST process every single sentence until the very last word.
-    2.  **CONTINUOUS STREAM:** Treat the input as a raw stream. Ignore original formatting/paragraphs.
-    3.  **GRANULARITY:** Do not group multiple sentences into one segment unless they are very short.
+    **PACING RULES (The "Director's Cut"):**
+    1.  **The Hook (Start):** The first 10-15 seconds of a video are crucial. Make the first 2-3 segments SHORT and PUNCHY (approx 1 sentence or phrase each) to grab attention.
+    2.  **The Body:** Afterwards, balance the pacing. Don't make clips too long. If a sentence is complex, split it.
+    3.  **Visual Change:** Start a new segment whenever the *visual idea* changes, even if it's mid-sentence.
 
-    For each segment, generate **3 VISUAL SEARCH TERMS** for stock footage.
-    
-    **SEARCH TERM RULES (CRITICAL):**
-    1. **ALWAYS IN ENGLISH** (even if script is Portuguese).
-    2. **NO SENTENCES.** Use descriptive KEYWORDS.
-    3. **NO** "Cinematic shot", "Video of", "4k". Just the subject.
+    **SEARCH TERM RULES:**
+    1.  For each segment, provide 3 DISTINCT search terms for Pexels/Stock Footage.
+    2.  **Term 1 (Descriptive):** Literal description (e.g., "Man typing on laptop in dark room").
+    3.  **Term 2 (Thematic):** The abstract concept (e.g., "Cybersecurity", "Hacker", "Focus").
+    4.  **Term 3 (Broad):** A wider, safe bet (e.g., "Technology", "Computer").
+    5.  **English Only:** Search terms must be in English.
 
-    **HIERARCHY OF TERMS (You must provide 3):**
-    1. **Descriptive (The Vibe):** Subject + Action + Mood/Setting (Max 5-6 words). 
-       *Example:* "Sad business woman crying rain window"
-    2. **Standard (The Subject):** Main Subject + Action (Max 3-4 words).
-       *Example:* "Woman crying window"
-    3. **Broad (The Safety Net):** Single Noun/Category (1 word). **Must be very broad.**
-       *Example:* "Sadness" or "Rain"
-    
-    *Logic:* If term 1 fails, the system tries term 2. If term 2 fails, term 3 MUST work.
+    Return the result as a JSON array.
   `;
 
   try {
@@ -62,7 +43,7 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a professional video editor specializing in B-Roll. You prioritize fast-paced hooks and complete coverage of the script.",
+        systemInstruction: "You are a professional Video Editor and B-Roll specialist. You ignore line breaks and focus on the story flow.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -71,12 +52,12 @@ export const analyzeScript = async (apiKey: string, script: string): Promise<Seg
             properties: {
               text: {
                 type: Type.STRING,
-                description: "The text segment (Keep short for the first 5 segments)",
+                description: "The spoken text/narration for this segment",
               },
               search_terms: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "List of 3 terms: [Descriptive, Standard, Broad]",
+                description: "List of 3 search terms: [Descriptive, Thematic, Broad]",
               },
             },
             required: ["text", "search_terms"],

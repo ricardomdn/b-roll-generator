@@ -256,7 +256,7 @@ const App: React.FC = () => {
               id="script-input"
               value={script}
               onChange={(e) => setScript(e.target.value)}
-              placeholder="Ex: O sol nasce sobre a cidade movimentada, iluminando os arranha-céus de vidro. Corta para uma mulher jovem tomando café e sorrindo enquanto olha seu tablet..."
+              placeholder="Ex: [Intro] Bem-vindos ao futuro... [Cena 2] Carros voadores passam..."
               className="w-full h-48 bg-slate-950 border border-slate-700 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y text-base leading-relaxed"
             />
             
@@ -378,7 +378,7 @@ const App: React.FC = () => {
 
               {/* Subtitles Overlay */}
               <div className="absolute bottom-12 left-0 right-0 px-4 text-center">
-                <div className="inline-block bg-black/60 backdrop-blur-sm px-6 py-3 rounded-lg">
+                <div className="inline-block bg-black/60 backdrop-blur-sm px-6 py-3 rounded-lg max-w-3xl">
                   <p className="text-white text-lg md:text-2xl font-medium drop-shadow-md leading-relaxed">
                     {segments[currentPreviewIndex].text}
                   </p>
