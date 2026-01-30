@@ -12,6 +12,7 @@ export interface ScriptSegment {
 export interface ApiKeys {
   gemini: string;
   pexels: string;
+  envato: string;
 }
 
 export interface PexelsVideoFile {

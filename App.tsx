@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { ResultList } from './components/ResultList';
 import { analyzeScript, generateAlternativeTerm } from './services/geminiService';
 import { searchPexelsVideo } from './services/pexelsService';
+import { searchEnvatoVideo } from './services/envatoService';
 import { ApiKeys, ScriptSegment } from './types';
 import JSZip from 'jszip';
 import saveAs from 'file-saver';
@@ -12,14 +13,16 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const PLACEHOLDER_TEXT = `Ex: Você já sentiu que o tempo está passando rápido demais? A vida na cidade grande nos consome. O trânsito caótico, as luzes artificiais e o barulho constante nos deixam exaustos. Precisamos de uma pausa. Mas imagine um lugar onde o relógio para. Um refúgio onde o único som é o vento nas árvores. Conecte-se com a natureza. Respire ar puro nas montanhas e redescubra sua paz interior. Sua próxima aventura começa agora.`;
 
+type VideoProvider = 'pexels' | 'envato';
+
 const App: React.FC = () => {
   // Inicializa o estado verificando o LocalStorage
   const [apiKeys, setApiKeys] = useState<ApiKeys>(() => {
     try {
       const saved = localStorage.getItem('ai_broll_keys');
-      return saved ? JSON.parse(saved) : { gemini: '', pexels: '' };
+      return saved ? JSON.parse(saved) : { gemini: '', pexels: '', envato: '' };
     } catch (e) {
-      return { gemini: '', pexels: '' };
+      return { gemini: '', pexels: '', envato: '' };
     }
   });
 
@@ -28,17 +31,36 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [provider, setProvider] = useState<VideoProvider>('pexels');
   
   // Estados de Download
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
   const [isZipping, setIsZipping] = useState(false);
 
+  const searchVideo = async (term: string) => {
+    if (provider === 'pexels') {
+      return await searchPexelsVideo(apiKeys.pexels, term);
+    } else {
+      return await searchEnvatoVideo(apiKeys.envato, term);
+    }
+  };
+
   const handleGenerate = async () => {
     setError(null);
     
-    if (!apiKeys.gemini || !apiKeys.pexels) {
-      setError("Por favor, insira ambas as chaves API na barra lateral antes de continuar.");
+    if (!apiKeys.gemini) {
+      setError("A chave API do Gemini é obrigatória.");
+      return;
+    }
+
+    if (provider === 'pexels' && !apiKeys.pexels) {
+      setError("A chave API do Pexels é obrigatória para este modo.");
+      return;
+    }
+
+    if (provider === 'envato' && !apiKeys.envato) {
+      setError("A chave API do Envato é obrigatória para este modo.");
       return;
     }
 
@@ -59,8 +81,8 @@ const App: React.FC = () => {
         throw new Error("A IA não retornou nenhum segmento válido.");
       }
 
-      // Step 2: Pexels Video Search
-      setLoadingStep(`Buscando vídeos para ${rawSegments.length} cenas...`);
+      // Step 2: Video Search
+      setLoadingStep(`Buscando vídeos no ${provider === 'pexels' ? 'Pexels' : 'Envato'}...`);
       
       const segmentPromises = rawSegments.map(async (seg, index) => {
         let videoData = null;
@@ -69,23 +91,19 @@ const App: React.FC = () => {
         // Tenta encontrar vídeo iterando pelos termos (Específico -> Geral)
         for (const term of seg.search_terms) {
           try {
-            // Pequeno delay para evitar Rate Limiting do Pexels (429 Too Many Requests)
-            // Especialmente importante quando o termo falha e tenta o próximo rapidamente
             await delay(150); 
             
-            const result = await searchPexelsVideo(apiKeys.pexels, term);
+            const result = await searchVideo(term);
             if (result && result.video_files && result.video_files.length > 0) {
               videoData = result;
               usedTerm = term;
               break; // Encontrou! Para o loop.
             }
           } catch (e) {
-            console.warn(`Falha ao buscar termo "${term}":`, e);
-            // Se for erro de autorização, lança para parar tudo. 
+            console.warn(`Falha ao buscar termo "${term}" no ${provider}:`, e);
             if (e instanceof Error && e.message.includes('inválida')) {
                 throw e; 
             }
-            // Se for outro erro (ex: 429 ou 404), continua para o próximo termo
             continue; 
           }
         }
@@ -101,8 +119,8 @@ const App: React.FC = () => {
         return {
           id: `seg-${index}-${Date.now()}`,
           text: seg.text,
-          searchTerm: usedTerm, // Mostra o termo que realmente funcionou
-          allSearchTerms: seg.search_terms, // Salva todas as opções para uso posterior
+          searchTerm: usedTerm,
+          allSearchTerms: seg.search_terms,
           videoUrl: bestVideoUrl,
           videoDuration: videoData?.duration,
           videoUser: videoData?.user?.name,
@@ -127,7 +145,7 @@ const App: React.FC = () => {
     if (segmentIndex === -1) return;
 
     try {
-      const result = await searchPexelsVideo(apiKeys.pexels, newTerm);
+      const result = await searchVideo(newTerm);
       
       let bestVideoUrl = null;
       let videoData = null;
@@ -167,8 +185,8 @@ const App: React.FC = () => {
       // 1. Gerar novo termo com Gemini
       const newTerm = await generateAlternativeTerm(apiKeys.gemini, segment.text, segment.searchTerm);
 
-      // 2. Buscar no Pexels com o novo termo
-      const result = await searchPexelsVideo(apiKeys.pexels, newTerm);
+      // 2. Buscar com o provedor selecionado
+      const result = await searchVideo(newTerm);
       
       let bestVideoUrl = null;
       let videoData = null;
@@ -196,7 +214,6 @@ const App: React.FC = () => {
 
     } catch (error) {
        console.error("Erro ao regenerar segmento:", error);
-       // Poderia setar um erro toast aqui
     }
   };
 
@@ -218,6 +235,8 @@ const App: React.FC = () => {
         if (!segment.videoUrl) return null;
 
         try {
+          // Nota: Para Envato, isso pode baixar o preview ou falhar se houver CORS restrito.
+          // Pexels geralmente permite CORS.
           const response = await fetch(segment.videoUrl);
           if (!response.ok) throw new Error(`Falha no download`);
           const blob = await response.blob();
@@ -252,6 +271,8 @@ const App: React.FC = () => {
         setIsZipping(true); // Muda o texto para "Compactando..."
         const content = await zip.generateAsync({ type: "blob" });
         saveAs(content, "b-roll-pack.zip");
+      } else {
+        setError("Não foi possível baixar os vídeos automaticamente. Tente baixar manualmente nos cards.");
       }
 
     } catch (err) {
@@ -268,7 +289,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
       <Sidebar apiKeys={apiKeys} setApiKeys={setApiKeys} />
 
-      {/* Main Container - Aumentado para max-w-[1600px] para ocupar mais as laterais */}
+      {/* Main Container */}
       <main className="flex-1 lg:ml-80 p-6 md:p-12 w-full transition-all flex flex-col max-w-[1600px] mx-auto">
         
         <div className="flex-grow">
@@ -285,7 +306,7 @@ const App: React.FC = () => {
             </p>
           </header>
 
-          {/* Input Section - Largura total */}
+          {/* Input Section */}
           <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl mb-12">
             <label htmlFor="script-input" className="block text-sm font-semibold text-slate-300 mb-3 flex justify-between">
               <span>Roteiro do Vídeo</span>
@@ -299,12 +320,38 @@ const App: React.FC = () => {
               className="w-full h-56 bg-slate-950 border border-slate-700 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y text-base leading-relaxed"
             />
             
-            <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* Controls Row */}
+            <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="text-xs text-slate-500">
                 {script.length > 0 && `${script.length} caracteres`}
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-center">
+                
+                {/* Provider Selector */}
+                <div className="bg-slate-950 p-1 rounded-lg border border-slate-700 flex">
+                  <button
+                    onClick={() => setProvider('pexels')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      provider === 'pexels' 
+                        ? 'bg-emerald-600 text-white shadow-lg' 
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Pexels <span className="text-[10px] opacity-70 ml-1">(Grátis)</span>
+                  </button>
+                  <button
+                    onClick={() => setProvider('envato')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      provider === 'envato' 
+                        ? 'bg-emerald-600 text-white shadow-lg' 
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Envato <span className="text-[10px] opacity-70 ml-1">(API)</span>
+                  </button>
+                </div>
+
                 {/* Botões de Ação Condicionais */}
                 {segments.length > 0 && !loading && (
                    <>
@@ -312,7 +359,7 @@ const App: React.FC = () => {
                         onClick={handleDownloadAll}
                         disabled={downloading}
                         className={`
-                          px-5 py-3 rounded-xl font-bold text-white transition-all flex items-center gap-2 justify-center border border-slate-600 min-w-[160px]
+                          px-5 py-2.5 rounded-xl font-bold text-white transition-all flex items-center gap-2 justify-center border border-slate-600 min-w-[160px] h-[42px]
                           ${downloading ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-700 hover:bg-slate-600'}
                         `}
                       >
@@ -335,7 +382,6 @@ const App: React.FC = () => {
                               </svg>
                               <span className="flex items-center gap-1">
                                 Baixar Tudo
-                                <span className="text-xs opacity-60 font-medium tracking-wide">(Lento)</span>
                               </span>
                             </>
                          )}
@@ -348,7 +394,7 @@ const App: React.FC = () => {
                   onClick={handleGenerate}
                   disabled={loading || downloading}
                   className={`
-                    px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 justify-center
+                    px-8 py-2.5 h-[42px] rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 justify-center
                     ${loading 
                       ? 'bg-slate-700 cursor-not-allowed text-slate-400' 
                       : 'bg-emerald-600 hover:bg-emerald-500 hover:shadow-emerald-500/20 active:transform active:scale-95'
@@ -392,7 +438,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Results - Pass function to update segments */}
+          {/* Results */}
           <div className="w-full">
             <ResultList 
                 segments={segments} 
@@ -402,7 +448,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer with Watermark */}
+        {/* Footer */}
         <footer className="mt-20 pt-8 border-t border-slate-800/50 text-center pb-4">
           <p className="text-slate-500 text-sm font-medium">
             Desenvolvido por <a href="https://github.com/ricardomdn" target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors hover:underline">Ricardão</a>
